@@ -20,7 +20,7 @@ pub(super) enum BlockBuilderImpl<T: PrimitiveFixedWidthEncode> {
     Plain(PlainPrimitiveBlockBuilder<T>),
     PlainNullable(PlainPrimitiveNullableBlockBuilder<T>),
     RunLength(RLEPrimitiveBlockBuilder<T, PlainPrimitiveBlockBuilder<T>>),
-    RlePlainNullable(RLEPrimitiveBlockBuilder<T, PlainPrimitiveNullableBlockBuilder<T>>),
+    RleNullable(RLEPrimitiveBlockBuilder<T, PlainPrimitiveNullableBlockBuilder<T>>),
 }
 
 pub type I32ColumnBuilder = PrimitiveColumnBuilder<i32>;
@@ -76,8 +76,8 @@ impl<T: PrimitiveFixedWidthEncode> PrimitiveColumnBuilder<T> {
                 builder.get_statistics(),
                 builder.finish(),
             ),
-            BlockBuilderImpl::RlePlainNullable(builder) => (
-                BlockType::RlePainNullable,
+            BlockBuilderImpl::RleNullable(builder) => (
+                BlockType::RleNullable,
                 builder.get_statistics(),
                 builder.finish(),
             ),
@@ -126,15 +126,14 @@ impl<T: PrimitiveFixedWidthEncode> ColumnBuilder<T::ArrayType> for PrimitiveColu
                 if self.nullable {
                     if self.options.is_rle {
                         let builder = PlainPrimitiveNullableBlockBuilder::new(0);
-                        self.current_builder = Some(
-                            BlockBuilderImpl::RlePlainNullable(RLEPrimitiveBlockBuilder::<
+                        self.current_builder =
+                            Some(BlockBuilderImpl::RleNullable(RLEPrimitiveBlockBuilder::<
                                 T,
                                 PlainPrimitiveNullableBlockBuilder<T>,
                             >::new(
                                 builder,
                                 self.options.target_block_size - 16,
-                            )),
-                        );
+                            )));
                     } else {
                         self.current_builder = Some(BlockBuilderImpl::PlainNullable(
                             PlainPrimitiveNullableBlockBuilder::new(
@@ -163,9 +162,7 @@ impl<T: PrimitiveFixedWidthEncode> ColumnBuilder<T::ArrayType> for PrimitiveColu
                 BlockBuilderImpl::Plain(builder) => append_one_by_one(&mut iter, builder),
                 BlockBuilderImpl::PlainNullable(builder) => append_one_by_one(&mut iter, builder),
                 BlockBuilderImpl::RunLength(builder) => append_one_by_one(&mut iter, builder),
-                BlockBuilderImpl::RlePlainNullable(builder) => {
-                    append_one_by_one(&mut iter, builder)
-                }
+                BlockBuilderImpl::RleNullable(builder) => append_one_by_one(&mut iter, builder),
             };
 
             self.block_index_builder.add_rows(row_count);

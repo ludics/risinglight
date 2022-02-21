@@ -13,7 +13,7 @@ use crate::types::BlobRef;
 /// All supported block builders for blob types.
 pub(super) enum BlobBlockBuilderImpl {
     PlainBlob(PlainBlobBlockBuilder<BlobRef>),
-    RlePlainBlob(RLEBytesBlockBuilder<BlobRef, PlainBlobBlockBuilder<BlobRef>>),
+    RleBlob(RLEBytesBlockBuilder<BlobRef, PlainBlobBlockBuilder<BlobRef>>),
 }
 
 /// Column builder of blob types.
@@ -49,8 +49,8 @@ impl BlobColumnBuilder {
                 builder.get_statistics(),
                 builder.finish(),
             ),
-            BlobBlockBuilderImpl::RlePlainBlob(builder) => (
-                BlockType::RlePlainVarchar,
+            BlobBlockBuilderImpl::RleBlob(builder) => (
+                BlockType::RleVarchar,
                 builder.get_statistics(),
                 builder.finish(),
             ),
@@ -70,7 +70,7 @@ impl ColumnBuilder<BlobArray> for BlobColumnBuilder {
                 if self.options.is_rle {
                     let builder = PlainBlobBlockBuilder::new(0);
                     self.current_builder =
-                        Some(BlobBlockBuilderImpl::RlePlainBlob(RLEBytesBlockBuilder::<
+                        Some(BlobBlockBuilderImpl::RleBlob(RLEBytesBlockBuilder::<
                             BlobRef,
                             PlainBlobBlockBuilder<BlobRef>,
                         >::new(
@@ -87,9 +87,7 @@ impl ColumnBuilder<BlobArray> for BlobColumnBuilder {
 
             let (row_count, should_finish) = match self.current_builder.as_mut().unwrap() {
                 BlobBlockBuilderImpl::PlainBlob(builder) => append_one_by_one(&mut iter, builder),
-                BlobBlockBuilderImpl::RlePlainBlob(builder) => {
-                    append_one_by_one(&mut iter, builder)
-                }
+                BlobBlockBuilderImpl::RleBlob(builder) => append_one_by_one(&mut iter, builder),
             };
 
             self.block_index_builder.add_rows(row_count);

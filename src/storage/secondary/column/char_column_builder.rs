@@ -13,8 +13,8 @@ use crate::storage::secondary::ColumnBuilderOptions;
 pub(super) enum CharBlockBuilderImpl {
     PlainFixedChar(PlainCharBlockBuilder),
     PlainVarchar(PlainBlobBlockBuilder<str>),
-    RlePlainFixedChar(RLEBytesBlockBuilder<str, PlainCharBlockBuilder>),
-    RlePlainVarchar(RLEBytesBlockBuilder<str, PlainBlobBlockBuilder<str>>),
+    RleFixedChar(RLEBytesBlockBuilder<str, PlainCharBlockBuilder>),
+    RleVarchar(RLEBytesBlockBuilder<str, PlainBlobBlockBuilder<str>>),
 }
 
 /// Column builder of char types.
@@ -63,13 +63,13 @@ impl CharColumnBuilder {
                 builder.get_statistics(),
                 builder.finish(),
             ),
-            CharBlockBuilderImpl::RlePlainFixedChar(builder) => (
-                BlockType::RlePlainFixedChar,
+            CharBlockBuilderImpl::RleFixedChar(builder) => (
+                BlockType::RleFixedChar,
                 builder.get_statistics(),
                 builder.finish(),
             ),
-            CharBlockBuilderImpl::RlePlainVarchar(builder) => (
-                BlockType::RlePlainVarchar,
+            CharBlockBuilderImpl::RleVarchar(builder) => (
+                BlockType::RleVarchar,
                 builder.get_statistics(),
                 builder.finish(),
             ),
@@ -90,13 +90,15 @@ impl ColumnBuilder<Utf8Array> for CharColumnBuilder {
                     (Some(char_width), false) => {
                         if self.options.is_rle {
                             let builder = PlainCharBlockBuilder::new(0, char_width);
-                            self.current_builder = Some(CharBlockBuilderImpl::RlePlainFixedChar(
-                                RLEBytesBlockBuilder::<str, PlainCharBlockBuilder>::new(
+                            self.current_builder =
+                                Some(CharBlockBuilderImpl::RleFixedChar(RLEBytesBlockBuilder::<
+                                    str,
+                                    PlainCharBlockBuilder,
+                                >::new(
                                     builder,
                                     self.options.target_block_size - 16,
                                     Some(char_width),
-                                ),
-                            ));
+                                )));
                         } else {
                             self.current_builder = Some(CharBlockBuilderImpl::PlainFixedChar(
                                 PlainCharBlockBuilder::new(
@@ -109,13 +111,15 @@ impl ColumnBuilder<Utf8Array> for CharColumnBuilder {
                     (None, _) => {
                         if self.options.is_rle {
                             let builder = PlainBlobBlockBuilder::new(0);
-                            self.current_builder = Some(CharBlockBuilderImpl::RlePlainVarchar(
-                                RLEBytesBlockBuilder::<str, PlainBlobBlockBuilder<str>>::new(
+                            self.current_builder =
+                                Some(CharBlockBuilderImpl::RleVarchar(RLEBytesBlockBuilder::<
+                                    str,
+                                    PlainBlobBlockBuilder<str>,
+                                >::new(
                                     builder,
                                     self.options.target_block_size - 16,
                                     None,
-                                ),
-                            ));
+                                )));
                         } else {
                             self.current_builder = Some(CharBlockBuilderImpl::PlainVarchar(
                                 PlainBlobBlockBuilder::new(self.options.target_block_size - 16),
@@ -137,12 +141,10 @@ impl ColumnBuilder<Utf8Array> for CharColumnBuilder {
                 CharBlockBuilderImpl::PlainVarchar(builder) => {
                     append_one_by_one(&mut iter, builder)
                 }
-                CharBlockBuilderImpl::RlePlainFixedChar(builder) => {
+                CharBlockBuilderImpl::RleFixedChar(builder) => {
                     append_one_by_one(&mut iter, builder)
                 }
-                CharBlockBuilderImpl::RlePlainVarchar(builder) => {
-                    append_one_by_one(&mut iter, builder)
-                }
+                CharBlockBuilderImpl::RleVarchar(builder) => append_one_by_one(&mut iter, builder),
             };
 
             self.block_index_builder.add_rows(row_count);
