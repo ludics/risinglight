@@ -1,5 +1,7 @@
 // Copyright 2022 RisingLight Project Authors. Licensed under Apache-2.0.
 
+use std::borrow::Borrow;
+
 use bytes::Buf;
 
 use super::{Block, BlockIterator};
@@ -36,8 +38,8 @@ where
     /// Indicates the number of rows in the rle block
     rle_row_count: usize,
 
-    /// Indicates the array of current row get from block_iter
-    cur_array: Option<A>,
+    /// Indicates the element of current row get from block_iter
+    cur_element: Option<<A::Item as ToOwned>::Owned>,
 
     /// Indicates how many rows get scanned for this iterator
     row_scanned_count: usize,
@@ -64,7 +66,7 @@ where
             cur_row: 0,
             cur_scanned_count: 0,
             rle_row_count,
-            cur_array: None,
+            cur_element: None,
             row_scanned_count: 0,
             row_count,
         }
@@ -89,14 +91,14 @@ where
         // TODO(chi): error handling on corrupted block
 
         let mut cnt = 0;
-        // If self.cur_array is none, then we need to get the first array from block_iter
+        // If self.cur_element is none, then we need to get the first array from block_iter
         // Every time we get only one item from block_iter
-        if self.cur_array.is_none() {
+        if self.cur_element.is_none() {
             let mut array_builder = A::Builder::new();
             if self.block_iter.next_batch(Some(1), &mut array_builder) == 0 {
                 return 0;
             }
-            self.cur_array = Some(array_builder.finish());
+            self.cur_element = array_builder.finish().get(0).map(|x| x.to_owned());
         }
         let mut rle_count = self.get_cur_rle_count();
 
@@ -110,7 +112,7 @@ where
 
             // Check if we need to get the next array from block_iter
             if self.cur_scanned_count < rle_count as usize {
-                builder.append(self.cur_array.as_ref().unwrap());
+                builder.push(self.cur_element.as_ref().map(|x| x.borrow()));
                 self.cur_scanned_count += 1;
                 cnt += 1;
             } else {
@@ -125,7 +127,7 @@ where
                 if self.block_iter.next_batch(Some(1), &mut array_builder) == 0 {
                     break;
                 }
-                self.cur_array = Some(array_builder.finish());
+                self.cur_element = array_builder.finish().get(0).map(|x| x.to_owned());
                 rle_count = self.get_cur_rle_count();
             }
         }
